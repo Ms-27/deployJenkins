@@ -1,22 +1,24 @@
 #!/bin/bash
+# on écrit une fonction qui installe Tomcat
 tomcat_install(){
+# on vérifie la présence du fichier Tomcat et on le décompresse
 	if [[ -e apache-tomcat-7.0.75.tar.gz ]]
 	then
 		tar -zxf apache-tomcat-7.0.75.tar.gz --directory ~/
 	else
-		echo "fichier tomcat non présent"
+		echo "fichier Tomcat non présent"
 	fi
 
-	if [[ -d /opt/apache-tomcat-7.0.75 ]]
+# on vérifie que le repertoire a bien étét créé
+	if [[ -d ~/apache-tomcat-7.0.75 ]]
 	then
-		echo "archive tomcat bien décompressée"
+		echo "archive Tomcat bien décompressée"
 	fi
 
-# on test la présence de java
+# on test la présence de java, si il n'est pas présent on l'installe
 	dpkg -s default-jdk | grep Status
 	if [ $? -gt  0 ]
 	then
-# si il n'est pas présent on l'installe
 		apt-get install default-jdk
 		echo "jdk a bien été installé"
 	else
@@ -29,33 +31,53 @@ tomcat_install(){
 	source ~/.bashrc
 }
 
+# on écrit une fonction qui installe jenkins
 jenkins_install(){
+# on vérifie la présence du fichier jenkins et on le déplace dans le dossier Tomcat webapps
 	if [[ -e jenkins46.war ]]
 	then
-		cp jenkins46.war ~/apache-tomcat-7.0.75/webapps/
+		if [[ -e /home/testeur/apache-tomcat-7.0.75/webapps/jenkins46.war ]]
+		then
+			echo "Jenkins est déjà présent"
+		else
+			cp jenkins46.war ~/apache-tomcat-7.0.75/webapps/
+			echo "Jenkins a été copié"
+		fi
 	else
 		echo "fichier jenkins non présent"
 	fi
 }
 
-# on vérifie si tomcat est présent
-# variante à supprimer : test_tomcat="ls /opt | grep tomcat | wc -l"
-if [[ -d /opt/tomcat/ ]]
+# on vérifie si le dossier Tomcat existe, sinon on l'installe
+if [[ -d ~/apache-tomcat-7.0.75 ]]
 then
-	echo "tomcat déjà présent"
+	echo "Tomcat est déjà présent"
 else
-	echo "on installe tomcat"
+	echo "On installe Tomcat"
 	tomcat_install
 fi
 
-#jenkins_install
-
-# on vérifie si tomcat est lancé
-#test="service tomcat7 status | grep "No" | awk '{print $2}'"
-
-#if [[ $test =~ "not-found" ]]
-#then
-#	echo "Ok"
-#else
-#	echo "KO"
-#fi
+# on vérifie si Tomcat est lancé pour pouvoir déployer jenkins:
+# on utilise la liste des processus qu'on filtre avec grep en ne gardant que ceux qui ont
+# apache.catalina dans leur nom, puis on exclu les processus grep et on sélectionne la deuxième
+# colonne qui correspond au PID.
+test=$(ps aux | grep apache.catalina | grep -v grep | awk '{print $2}')
+echo "valeur test: " $test
+# si le PID est non nul, Tomcat est lancé
+if [ -z "$test" ]
+then
+	echo "Ok Tomcat n'est pas lancé, on déploie jenkins"
+# on installe jenkins
+	jenkins_install
+# on lance Tomcat
+	/home/testeur/apache-tomcat-7.0.75/bin/startup.sh
+else
+	echo "Tomcat est lancé"
+# on éteint Tomcat
+	/home/testeur/apache-tomcat-7.0.75/bin/shutdown.sh
+	echo "Tomcat est éteint, on déploie jenkins"
+# on installe jenkins
+	jenkins_install
+# on lance Tomcat
+	/home/testeur/apache-tomcat-7.0.75/bin/startup.sh
+fi
